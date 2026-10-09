@@ -1,0 +1,24 @@
+# Root directory for all downloaded and derived data
+data_root: /media/sebastian-hafner/T7/projects/ai4onboardsar
+
+# A scene = one datatake section covered by one or more GRD slices (label source)
+# and one or more RAW (L0) slices (model input). RAW slices are found automatically
+# via datatake ID and time overlap.
+scenes:
+  s4_20250422:
+    split: train
+    grd:
+      - S1C_S4_GRDH_1SDV_20250422T172347_20250422T172416_002009_00413D_DAAA.SAFE
+      - S1C_S4_GRDH_1SDV_20250422T172416_20250422T172441_002009_00413D_942B.SAFE
+  s4_20250329:
+    split: test           # Thames estuary, same beam as training
+    grd:
+      - S1C_S4_GRDH_1SDV_20250329T061359_20250329T061427_001652_002B01_0D5C.SAFE
+  s4_20250427:
+    split: test_frozen    # northern Sweden, lakes still ice-covered -> false-positive test only
+    grd:
+      - S1C_S4_GRDH_1SDV_20250427T155803_20250427T155826_002081_004574_F1C2.SAFE
+  s2_20250405:
+    split: test_frozen    # northern Sweden, S2 beam, ice-covered lakes
+    grd:
+      - S1C_S2_GRDH_1SDV_20250405T154141_20250405T154204_001760_0031DC_C16E.SAFE

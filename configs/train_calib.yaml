@@ -1,0 +1,29 @@
+scenes_config: configs/scenes.yaml
+runs_dir: /media/sebastian-hafner/T7/projects/ai4onboardsar/runs
+train_scene: s4_20250422
+test_scenes: [s4_20250329, s4_20250427, s2_20250405]
+seed: 0
+threads: 6
+
+norm: calib          # calib (per-beam range profile, absolute) | ema (causal running mean, relative) | calib+ema
+ema_rows: 512        # time constant of the ema normalization [rows]
+delay: 32            # output latency [rows]; ~half synthetic aperture (0.55 s * PRF / 16 / 2 ~ 28)
+val_start: 0.58      # validation azimuth block [val_start, val_start + val_frac) of the training scene
+val_frac: 0.17       # (estuary + land; the end of the scene is mostly open sea)
+
+window:
+  warmup: 64
+  target_len: 128
+  width: 512
+
+model:
+  name: bingru       # bingru | convgru | tcn
+  kwargs: {ch: 16}
+
+batch_size: 8
+steps_per_epoch: 100
+epochs: 20
+lr: 2.0e-3
+weight_decay: 1.0e-4
+water_oversample: 0.5
+max_pos_weight: 10.0
