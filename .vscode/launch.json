@@ -1,0 +1,67 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Train (debug config)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/train.py",
+            "args": [
+                "--config", "configs/train_debug.yaml",
+                "--out", "/media/sebastian-hafner/T7/projects/ai4onboardsar/runs/debug"
+            ],
+            "cwd": "${workspaceFolder}",
+            "python": "/home/sebastian-hafner/miniconda3/envs/ai4onboardsar/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Train (full config)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/train.py",
+            "args": [
+                "--config", "configs/train.yaml",
+                "--out", "/media/sebastian-hafner/T7/projects/ai4onboardsar/runs/debug_full"
+            ],
+            "cwd": "${workspaceFolder}",
+            "python": "/home/sebastian-hafner/miniconda3/envs/ai4onboardsar/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Infer from raw L0 (short stretch)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/infer_raw.py",
+            "args": [
+                "--run", "/media/sebastian-hafner/T7/projects/ai4onboardsar/runs/minimal_none",
+                "--scene", "s4_20250329", "--rows", "1000", "1128"
+            ],
+            "cwd": "${workspaceFolder}",
+            "python": "/home/sebastian-hafner/miniconda3/envs/ai4onboardsar/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Annotate / label projection",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/annotate.py",
+            "args": ["--scene", "${input:scene}"],
+            "cwd": "${workspaceFolder}",
+            "python": "/home/sebastian-hafner/miniconda3/envs/ai4onboardsar/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ],
+    "inputs": [
+        {
+            "id": "scene",
+            "type": "pickString",
+            "description": "Scene to annotate (s4_20250329 has a single GRD slice and is the fastest)",
+            "options": ["s4_20250329", "s4_20250422", "s4_20250427", "s2_20250405"],
+            "default": "s4_20250329"
+        }
+    ]
+}

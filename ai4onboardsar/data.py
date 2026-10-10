@@ -1,48 +1,28 @@
 """Datasets over range-compressed scenes.
 
 The model consumes "rows": incoherent averages of `lines_per_row` consecutive echo lines (an onboard
-running accumulator), so one recurrent step = one row. Inputs are normalized in a streaming-compatible
-way (`norm`):
+running accumulator), so one recurrent step = one row. Inputs are normalized with fixed, streaming-
+compatible offsets (`norm`):
+  "none":  subtract one global offset per polarisation (`db_offset`, the median RC power of the
+           training scene); the range gain profile (antenna pattern) stays in the input
   "calib": subtract a fixed per-beam range gain profile over slant-range time (scripts/calibrate.py)
-           -> keeps absolute radiometry
-  "ema":   subtract a causal per-range-bin exponential moving average over past rows
-           -> relative contrast only (fails on homogeneous dark land, e.g. snow)
-  "calib+ema": both (channels: calib VV, VH, ema VV, VH)
-A validity channel is always appended.
+Both keep absolute radiometry. A validity channel is always appended.
 """
 import json
 from pathlib import Path
 
 import numpy as np
 import torch
-from scipy.signal import lfilter
 from torch.utils.data import Dataset
 
 DB_SCALE = 3.0  # dB -> network units
+NORMS = ("none", "calib")
 
 
-def causal_ema(x: np.ndarray, alpha: float, init: np.ndarray | None = None) -> np.ndarray:
-    """EMA along axis 0, ignoring NaNs (NaN rows keep the previous state)."""
-    out = np.empty_like(x)
-    state = np.nanmedian(x[:200], axis=0) if init is None else init
-    state = np.where(np.isfinite(state), state, np.nanmedian(x))
-    # vectorized lfilter where finite, falling back to a loop only if NaNs present
-    if np.isfinite(x).all():
-        zi = (1 - alpha) * state
-        out[:] = lfilter([alpha], [1, -(1 - alpha)], x, axis=0, zi=zi[None])[0]
-        return out
-    for i in range(len(x)):
-        v = x[i]
-        state = np.where(np.isfinite(v), (1 - alpha) * state + alpha * v, state)
-        out[i] = state
-    return out
-
-
-def ema_normalize(x: np.ndarray, ema_rows: int = 512) -> np.ndarray:
-    """Subtract the causal EMA over previous rows (state after row i-1), per range bin."""
-    mean = causal_ema(x.reshape(len(x), -1), 1.0 / ema_rows).reshape(x.shape)
-    prev = np.concatenate([mean[:1], mean[:-1]], 0)
-    return np.where(np.isfinite(x), (x - prev) / DB_SCALE, 0.0)
+def offset_normalize(x: np.ndarray, db_offset) -> np.ndarray:
+    """Subtract one fixed offset per polarisation (axis 1)."""
+    off = np.asarray(db_offset, np.float32)[None, :, None]
+    return np.where(np.isfinite(x), (x - off) / DB_SCALE, 0.0)
 
 
 def calib_normalize(x: np.ndarray, tau: np.ndarray, calib: dict) -> np.ndarray:
@@ -51,17 +31,18 @@ def calib_normalize(x: np.ndarray, tau: np.ndarray, calib: dict) -> np.ndarray:
     return np.where(np.isfinite(x), (x - prof[None]) / DB_SCALE, 0.0)
 
 
-def normalize_rows(rc_rows_db: np.ndarray, norm: str = "calib", ema_rows: int = 512, tau=None,
+def normalize_rows(rc_rows_db: np.ndarray, norm: str = "none", db_offset=None, tau=None,
                    calib=None) -> np.ndarray:
     """(n_rows, n_pol, n_bins) dB -> normalized float32 channels + validity channel."""
     x = rc_rows_db.astype(np.float32)
     valid = np.isfinite(x).all(1, keepdims=True)
-    parts = []
-    if "calib" in norm:
-        parts.append(calib_normalize(x, tau, calib))
-    if "ema" in norm:
-        parts.append(ema_normalize(x, ema_rows))
-    return np.concatenate(parts + [valid.astype(np.float32)], 1).astype(np.float32)
+    if norm == "none":
+        xn = offset_normalize(x, db_offset)
+    elif norm == "calib":
+        xn = calib_normalize(x, tau, calib)
+    else:
+        raise ValueError(f"unknown norm {norm!r}, expected one of {NORMS}")
+    return np.concatenate([xn, valid.astype(np.float32)], 1).astype(np.float32)
 
 
 def load_calib(data_root: Path, beam: str) -> dict:
@@ -70,15 +51,15 @@ def load_calib(data_root: Path, beam: str) -> dict:
 
 
 class Scene:
-    def __init__(self, proc_dir: Path, ema_rows: int = 512, norm: str = "ema"):
+    def __init__(self, proc_dir: Path, norm: str = "none", db_offset=None):
         self.dir = Path(proc_dir)
         self.meta = json.load(open(self.dir / "annot_meta.json"))
         rc_meta = json.load(open(self.dir / "rc_meta.json"))
         self.beam = rc_meta["raw"][0].split("_")[1]
         rows = np.load(self.dir / "rc_rows_db.npy")
         tau = rc_meta["tau_start"] + (np.arange(rows.shape[2]) + 0.5) * rc_meta["dtau"]
-        calib = load_calib(self.dir.parents[1], self.beam) if "calib" in norm else None
-        self.x = normalize_rows(rows, norm, ema_rows, tau, calib)  # (R, C, B)
+        calib = load_calib(self.dir.parents[1], self.beam) if norm == "calib" else None
+        self.x = normalize_rows(rows, norm, db_offset, tau, calib)  # (R, C, B)
         self.y = np.load(self.dir / "labels.npy")  # (R, B), NaN = unlabelled
         assert self.x.shape[0] == self.y.shape[0]
 

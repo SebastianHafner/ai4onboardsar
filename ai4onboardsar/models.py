@@ -76,6 +76,36 @@ class ConvGRUNet(nn.Module):
         return torch.stack(outs, 1), state
 
 
+class MinimalNet(nn.Module):
+    """One conv along range -> GRU per range bin over slow time -> linear output per bin (default).
+
+    All weights are shared across range bins (bins are folded into the batch dimension of the GRU);
+    each bin keeps its own hidden state. Range context is limited to the conv kernel (k bins). In
+    the screening experiments this matched BinGRUNet with ~4x fewer parameters and operations."""
+
+    def __init__(self, cin=3, ch=16, k=5):
+        super().__init__()
+        self.ch = ch
+        self.enc = nn.Sequential(nn.Conv1d(cin, ch, k, padding=k // 2), nn.ReLU(inplace=True))
+        self.gru = nn.GRU(ch, ch, batch_first=True)
+        self.head = nn.Linear(ch, 1)
+
+    def init_state(self, b, w, device="cpu"):
+        return torch.zeros(1, b * w, self.ch, device=device)
+
+    def forward(self, x, state=None):
+        b, t, c, w = x.shape
+        f = self.enc(x.reshape(b * t, c, w)).reshape(b, t, self.ch, w)
+        seq = f.permute(0, 3, 1, 2).reshape(b * w, t, self.ch)          # (B*W, T, ch)
+        h, state = self.gru(seq, state if state is not None else self.init_state(b, w, x.device))
+        return self.head(h).reshape(b, w, t).permute(0, 2, 1), state    # (B, T, W)
+
+    def step(self, x, state):
+        """x: (B, C, W) one row; returns logits (B, W) and new state."""
+        out, state = self.forward(x[:, None], state)
+        return out[:, 0], state
+
+
 class BinGRUNet(nn.Module):
     """Row encoder -> independent GRU per range bin over slow time -> conv head along range.
 
@@ -134,4 +164,4 @@ class CausalTCN(nn.Module):
 
 
 def build_model(name: str, **kw) -> nn.Module:
-    return {"convgru": ConvGRUNet, "bingru": BinGRUNet, "tcn": CausalTCN}[name](**kw)
+    return {"minimal": MinimalNet, "bingru": BinGRUNet, "convgru": ConvGRUNet, "tcn": CausalTCN}[name](**kw)

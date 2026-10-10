@@ -1,0 +1,30 @@
+# Small settings for stepping through train.py in a debugger (see .vscode/launch.json)
+scenes_config: configs/scenes.yaml
+runs_dir: /media/sebastian-hafner/T7/projects/ai4onboardsar/runs
+train_scene: s4_20250422
+test_scenes: [s4_20250329, s4_20250427, s2_20250405]
+seed: 0
+threads: 4
+
+norm: none           # none (one global offset per polarisation) | calib (per-beam range profile)
+db_offset: [27.57, 21.63]  # [VV, VH] dB, median RC power of the training scene (norm: none)
+delay: 32            # output latency [rows]; ~half synthetic aperture (0.55 s * PRF / 16 / 2 ~ 28)
+val_start: 0.58      # validation azimuth block [val_start, val_start + val_frac) of the training scene
+val_frac: 0.17       # (estuary + land; the end of the scene is mostly open sea)
+
+window:
+  warmup: 64
+  target_len: 128
+  width: 256
+
+model:
+  name: minimal      # minimal | bingru | convgru | tcn
+  kwargs: {ch: 16}
+
+batch_size: 2
+steps_per_epoch: 5
+epochs: 2
+lr: 2.0e-3
+weight_decay: 1.0e-4
+water_oversample: 0.5
+max_pos_weight: 10.0

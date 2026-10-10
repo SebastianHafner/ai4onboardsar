@@ -55,7 +55,7 @@ def main():
     data_root = Path(yaml.safe_load(open(cfg["scenes_config"]))["data_root"])
     D = cfg["delay"]
 
-    train = Scene(data_root / "processed" / cfg["train_scene"], cfg["ema_rows"], cfg.get("norm", "ema"))
+    train = Scene(data_root / "processed" / cfg["train_scene"], cfg["norm"], cfg.get("db_offset"))
     v_a, v_b = val_rows(cfg, train.n_rows)
     tr_rows = np.r_[0:v_a - 2 * D, v_b + 2 * D:train.n_rows]
     model = build_model(cfg["model"]["name"], cin=train.x.shape[1], **cfg["model"].get("kwargs", {}))
@@ -70,7 +70,7 @@ def main():
     lines_per_row = train.meta["lines_per_row"]
     scenes = {"val": (train, v_a, v_b)}
     for s in args.scenes or cfg["test_scenes"]:
-        sc = Scene(data_root / "processed" / s, cfg["ema_rows"], cfg.get("norm", "ema"))
+        sc = Scene(data_root / "processed" / s, cfg["norm"], cfg.get("db_offset"))
         scenes[s] = (sc, 0, sc.n_rows)
 
     for name, (sc, r0, r1) in scenes.items():

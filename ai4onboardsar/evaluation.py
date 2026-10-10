@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from scipy.ndimage import uniform_filter1d
 
-from .models import BinGRUNet, ConvGRUNet
+from .models import CausalTCN
 
 
 @torch.no_grad()
@@ -14,7 +14,7 @@ def stream_predict(model, x: np.ndarray, delay: int, chunk: int = 256) -> np.nda
     R = x.shape[0]
     out = np.full((R, x.shape[2]), np.nan, np.float32)
     xt = torch.from_numpy(x)
-    if isinstance(model, (ConvGRUNet, BinGRUNet)):
+    if not isinstance(model, CausalTCN):  # recurrent: carry the state across chunks
         state = None
         for s in range(0, R, chunk):
             logits, state = model(xt[None, s:s + chunk], state)

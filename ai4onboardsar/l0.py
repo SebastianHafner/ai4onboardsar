@@ -90,11 +90,10 @@ def range_compress(echo: np.ndarray, replica: np.ndarray) -> np.ndarray:
     return rc.astype(np.complex64)
 
 
-def decode_range_compressed_power(dec: Level0Decoder, meta: EchoMeta, rows: np.ndarray,
-                                  batch: int = 1024):
-    """Yield (row_indices, power) for the given echo rows (indices into meta.packets), where power is
-    |range-compressed|^2 corrected for Rx gain, at full range sampling. Rows are grouped into
-    batches with constant packet geometry (same chunk)."""
+def decode_echoes(dec: Level0Decoder, meta: EchoMeta, rows: np.ndarray, batch: int = 1024):
+    """Yield (row_indices, echo, rx_gain_db, replica) for the given echo rows (indices into
+    meta.packets): complex echo samples (n, n_samples) and the nominal chirp replica. Rows are grouped
+    into batches with constant packet geometry (same chunk)."""
     pk = meta.packets.iloc[rows]
     chunk_ids = pk.index.get_level_values(fn.ACQUISITION_CHUNK_NUM_DECODED).to_numpy()
     # split into runs of constant chunk id, then into batches
@@ -108,11 +107,18 @@ def decode_range_compressed_power(dec: Level0Decoder, meta: EchoMeta, rows: np.n
             fs = r0[fn.RANGE_DEC_DECODED].sample_rate_hz
             rep = chirp_replica(r0[fn.TX_PULSE_LEN_DECODED], r0[fn.TX_RAMP_RATE_DECODED],
                                 r0[fn.TX_PULSE_START_FREQ_DECODED], fs)
-            rc = range_compress(echo, rep)
-            pw = (rc.real**2 + rc.imag**2).astype(np.float32)
-            gain = sub[fn.RX_GAIN_DECODED].to_numpy(np.float64)  # [dB]
-            pw /= (10 ** (gain / 10)).astype(np.float32)[:, None]
-            yield rows[sel], pw, len(rep)
+            yield rows[sel], echo, sub[fn.RX_GAIN_DECODED].to_numpy(np.float64), rep
+
+
+def decode_range_compressed_power(dec: Level0Decoder, meta: EchoMeta, rows: np.ndarray,
+                                  batch: int = 1024):
+    """Yield (row_indices, power, replica_length) for the given echo rows, where power is
+    |range-compressed|^2 corrected for Rx gain, at full range sampling."""
+    for rws, echo, gain, rep in decode_echoes(dec, meta, rows, batch):
+        rc = range_compress(echo, rep)
+        pw = (rc.real**2 + rc.imag**2).astype(np.float32)
+        pw /= (10 ** (gain / 10)).astype(np.float32)[:, None]
+        yield rws, pw, len(rep)
 
 
 def block_mean(x: np.ndarray, k: int) -> np.ndarray:

@@ -52,7 +52,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     yaml.safe_dump(cfg, open(out / "config.yaml", "w"))
 
-    scene = Scene(data_root / "processed" / cfg["train_scene"], cfg["ema_rows"], cfg.get("norm", "ema"))
+    scene = Scene(data_root / "processed" / cfg["train_scene"], cfg["norm"], cfg.get("db_offset"))
     R, D = scene.n_rows, cfg["delay"]
     v_a, v_b = val_rows(cfg, R)
     w = cfg["window"]
